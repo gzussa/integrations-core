@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+
+  vault:
+    image: vault:latest
+    cap_add:
+      - IPC_LOCK
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=myroot
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=https://127.0.0.1:8200
+    volumes:
+      - /Users/gregzussa/dd/integrations-core/vault/testing/scenario_1/certs:/tmp/certs:ro
+    ports:
+      - "8200:8200"
+
+  dd-agent:
+    image: datadog/agent-dev:6-5-0-rc-2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /Users/gregzussa/dd/integrations-core/vault/testing/scenario_1/conf.d:/conf.d:ro
+    environment:
+      - DD_API_KEY=11111111111111111111111111111111

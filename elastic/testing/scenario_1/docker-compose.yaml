@@ -1,0 +1,39 @@
+version: '3.5'
+
+services:
+  elastic:
+    image: "docker.elastic.co/elasticsearch/elasticsearch:6.3.2"
+    environment:
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.monitoring.collection.enabled=true
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    networks:
+      - network1
+
+  dd-agent:
+    image: datadog/agent-dev:6-5-0-rc-2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /Users/gregzussa/dd/integrations-core/elastic/testing/scenario_1/conf.d:/conf.d:ro
+    environment:
+      - DD_API_KEY=11111111111111111111111111111111
+    networks:
+      - network1
+
+volumes:
+  esdata1:
+    driver: local
+
+networks:
+  network1:
+    name: elastic5

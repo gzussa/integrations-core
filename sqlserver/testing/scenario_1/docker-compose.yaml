@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  sqlserver:
+    # https://hub.docker.com/r/microsoft/mssql-server-linux
+    # https://docs.microsoft.com/en-us/sql/linux/quickstart-install-connect-docker?view=sql-server-linux-2017
+    image: microsoft/mssql-server-linux:2017-CU9
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Password123
+    ports:
+      - "1433:1433"
+
+  dd-agent:
+    image: datadog/agent-dev:6-5-0-rc-2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /Users/gregzussa/dd/integrations-core/sqlserver/testing/scenario_1/conf.d:/conf.d:ro
+    environment:
+      - DD_API_KEY=11111111111111111111111111111111

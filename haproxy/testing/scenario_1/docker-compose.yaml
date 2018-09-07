@@ -1,0 +1,36 @@
+version: '3.5'
+
+services:
+  haproxy:
+    image: "haproxy:1.8.5"
+    volumes:
+      - /Users/gregzussa/dd/integrations-core/haproxy/tests/compose/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      - /tmp/haproxy:/tmp
+    ports:
+      - "13835:13835"
+    networks:
+      - network1
+  haproxy-open:
+    image: "haproxy:1.8.5"
+    volumes:
+      - /Users/gregzussa/dd/integrations-core/haproxy/tests/compose/haproxy-open.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    ports:
+      - "13836:13836"
+    networks:
+      - network1
+  dd-agent:
+    image: datadog/agent-dev:6-5-0-rc-2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /Users/gregzussa/dd/integrations-core/haproxy/testing/scenario_1/conf.d:/conf.d:ro
+      - /tmp/haproxy:/tmp
+    environment:
+      - DD_API_KEY=11111111111111111111111111111111
+    networks:
+      - network1
+
+networks:
+  network1:
+    name: haproxy_network

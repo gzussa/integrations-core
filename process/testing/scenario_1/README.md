@@ -1,0 +1,7 @@
+- Change the version of the agent in the `docker-compose.yaml` file.
+- Run `docker-compose -f docker-compose.yaml up -d`
+- SSH to your container `docker exec -it scenario_1_dd-agent_1 /bin/bash`
+- Run `/opt/datadog-agent/bin/agent/agent status` (in container)
+  - process check should display a warning
+- Run `sleep 180` in the container
+- Run `/opt/datadog-agent/bin/agent/agent check process` and make sure we submit metrics.

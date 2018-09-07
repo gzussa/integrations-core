@@ -1,0 +1,31 @@
+version: '2.1'
+services:
+  postgres:
+    image: "postgres:9.3-alpine"
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datadog -d datadog_test && if [[ ! -e /tmp/container_ready.txt ]]; then exit 1; fi"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./resources:/docker-entrypoint-initdb.d/
+    networks:
+      - network1
+
+  dd-agent:
+    image: datadog/agent-dev:6-5-0-rc-2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /Users/gregzussa/dd/integrations-core/postgres/testing/scenario_1/conf.d:/conf.d:ro
+    environment:
+      - DD_API_KEY=11111111111111111111111111111111
+    networks:
+      - network1
+
+networks:
+  network1:
+    name: pgnet
