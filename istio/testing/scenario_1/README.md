@@ -67,4 +67,7 @@ NOTE: RUNNING INTO THIS ISSUE
 Error from server (NotFound): namespaces "istio-system" not found
 ```
 
-Greg M advise to use https://docs.google.com/document/d/19Ov4Y-ElR1b2i0fPUZxYqgfbc70fvslK4ZVUzB2CXM4/edit#
+UPDATE:
+Use https://docs.google.com/document/d/19Ov4Y-ElR1b2i0fPUZxYqgfbc70fvslK4ZVUzB2CXM4/edit# (Follow all these instructions!!!!)
+
+Once the cluster is up. Go to the istio-telemetry service and forward ports for http-monitoring and prometheus!!!!	

@@ -6,8 +6,8 @@ instances:
   # Note for RHEL and SUSE users: due to compatibility issues, the check does not make use of
   # the CPP extension to process Protocol buffer messages coming from the api. Depending
   # on the metrics volume, the check may run very slowly.
-  - istio_mesh_endpoint: http://host.docker.internal:9090/metrics
-    mixer_endpoint: http://host.docker.internal:9090/metrics
+  - istio_mesh_endpoint: http://host.docker.internal:8081/metrics
+    mixer_endpoint: http://host.docker.internal:8081/metrics
     send_histograms_buckets: true
     # tags:
     #   - optional_tag1
