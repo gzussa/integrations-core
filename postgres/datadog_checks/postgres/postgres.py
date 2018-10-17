@@ -6,11 +6,12 @@ import threading
 import re
 from contextlib import closing
 
+import pg8000
+from six.moves import zip_longest
 try:
     import psycopg2
 except ImportError:
     psycopg2 = None
-import pg8000
 
 from datadog_checks.checks import AgentCheck
 from datadog_checks.errors import CheckException
@@ -202,10 +203,12 @@ SELECT schemaname, count(*) FROM
         """.format(table_count_limit=TABLE_COUNT_LIMIT)
     }
 
-    q = ('CASE WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0 ELSE GREATEST '
-         '(0, EXTRACT (EPOCH FROM now() - pg_last_xact_replay_timestamp())) END')
+    q1 = ('CASE WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0 ELSE GREATEST '
+          '(0, EXTRACT (EPOCH FROM now() - pg_last_xact_replay_timestamp())) END')
+    q2 = ('abs(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn()))')
     REPLICATION_METRICS_10 = {
-        q: ('postgresql.replication_delay', GAUGE),
+        q1: ('postgresql.replication_delay', GAUGE),
+        q2: ('postgresql.replication_delay_bytes', GAUGE),
     }
 
     q = ('CASE WHEN pg_last_xlog_receive_location() = pg_last_xlog_replay_location() THEN 0 ELSE GREATEST '
@@ -394,20 +397,21 @@ GROUP BY datid, datname
         if key not in self.versions:
             cursor = db.cursor()
             cursor.execute('SHOW SERVER_VERSION;')
-            result = cursor.fetchone()
+            version = cursor.fetchone()[0]
             try:
-                version = map(int, result[0].split(' ')[0].split('.'))
+                version_parts = version.split(' ')[0].split('.')
+                version = [int(part) for part in version_parts]
             except Exception:
-                # Postgres might be in beta, with format \d+beta\d+
-                version = list(re.match('(\d+)(beta)(\d+)', result[0]).groups())
+                # Postgres might be in development, with format \d+[beta|rc]\d+
+                match = re.match('(\d+)([a-zA-Z]+)(\d+)', version)
+                if match:
+                    version_parts = list(match.groups())
 
-                # We found a valid beta version
-                if len(version) == 3:
-                    # Replace beta with a negative number to properly compare versions
-                    version[1] = -1
-                    version = map(int, version)
-                else:
-                    version = result[0]
+                    # We found a valid development version
+                    if len(version_parts) == 3:
+                        # Replace development tag with a negative number to properly compare versions
+                        version_parts[1] = -1
+                        version = [int(part) for part in version_parts]
 
             self.versions[key] = version
 
@@ -417,7 +421,15 @@ GROUP BY datid, datname
     def _is_above(self, key, db, version_to_compare):
         version = self._get_version(key, db)
         if type(version) == list:
-            return version >= version_to_compare
+            # iterate from major down to bugfix
+            for v, vc in zip_longest(version, version_to_compare, fillvalue=0):
+                if v == vc:
+                    continue
+
+                return v > vc
+
+            # return True if version is the same
+            return True
 
         return False
 
@@ -486,7 +498,8 @@ GROUP BY datid, datname
             'query': "SELECT datname, %s "
             "FROM pg_stat_database "
             "WHERE datname not ilike 'template%%' "
-            "  AND datname not ilike 'rdsadmin' ",
+            "  AND datname not ilike 'rdsadmin' "
+            "  AND datname not ilike 'azure_maintenance' ",
             'relation': False,
         }
 
@@ -568,8 +581,9 @@ GROUP BY datid, datname
         }
 
     def _get_replication_metrics(self, key, db):
-        """ Use either REPLICATION_METRICS_9_1 or REPLICATION_METRICS_9_1 + REPLICATION_METRICS_9_2
-        depending on the postgres version.
+        """ Use either REPLICATION_METRICS_10, REPLICATION_METRICS_9_1, or
+        REPLICATION_METRICS_9_1 + REPLICATION_METRICS_9_2, depending on the
+        postgres version.
         Uses a dictionnary to save the result for each instance
         """
         metrics = self.replication_metrics.get(key)
@@ -839,8 +853,6 @@ GROUP BY datid, datname
         """
         Given a list of custom_queries, execute each query and parse the result for metrics
         """
-        cursor = db.cursor()
-
         for custom_query in custom_queries:
             metric_prefix = custom_query.get('metric_prefix')
             if not metric_prefix:
@@ -862,14 +874,16 @@ GROUP BY datid, datname
                 )
                 continue
 
+            cursor = db.cursor()
             with closing(cursor) as cursor:
                 try:
                     self.log.debug("Running query: {}".format(query))
                     cursor.execute(query)
                     row = cursor.fetchone()
                 except programming_error as e:
-                    self.log.warning("Not all metrics may be available: {}".format(str(e)))
+                    self.log.error("Error executing query for metric_prefix {}: {}".format(metric_prefix, str(e)))
                     db.rollback()
+                    continue
 
                 if not row:
                     self.log.debug("query result for metric_prefix {}: returned an empty result".format(metric_prefix))

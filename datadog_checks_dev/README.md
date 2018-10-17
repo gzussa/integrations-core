@@ -31,9 +31,17 @@ and is available on Linux, macOS, and Windows, and supports Python 2.7/3.5+ and 
       - [Pin](#pin)
       - [Resolve](#resolve)
       - [Verify](#verify)
+    - [Env](#env)
+      - [Check](#check)
+      - [List](#list)
+      - [Prune](#prune)
+      - [Start](#start)
+      - [Stop](#stop)
     - [Manifest](#manifest)
       - [Set](#set-1)
       - [Verify](#verify-1)
+    - [Metadata](#metadata)
+      - [Verify](#verify-2)
     - [Release](#release)
       - [Changelog](#changelog)
       - [Freeze](#freeze-1)
@@ -44,6 +52,7 @@ and is available on Linux, macOS, and Windows, and supports Python 2.7/3.5+ and 
       - [Tag](#tag)
       - [Testable](#testable)
       - [Upload](#upload)
+    - [Run](#run)
     - [Test](#test)
 - [Development](#development)
   - [Installation](#installation-1)
@@ -81,6 +90,7 @@ $ ddev
 Usage: ddev [OPTIONS] COMMAND [ARGS]...
 
 Options:
+  -c, --core    Work on `integrations-core`.
   -e, --extras  Work on `integrations-extras`.
   -x, --here    Work on the current location.
   -q, --quiet
@@ -93,6 +103,7 @@ Commands:
   create    Create scaffolding for a new integration
   dep       Manage dependencies
   manifest  Manage manifest files
+  metadata  Manage metadata files
   release   Manage the release of checks
   test      Run tests
 ```
@@ -229,12 +240,12 @@ Usage: ddev create [OPTIONS] NAME
   Create scaffolding for a new integration.
 
 Options:
-  -t, --type [check]      The type of integration to create
-  -l, --location TEXT     The directory where files will be written
-  -ni, --non-interactive  Disable prompting for fields
-  -q, --quiet             Show less output
-  -n, --dry-run           Only show what would be created
-  -h, --help              Show this message and exit.
+  -t, --type [check|jmx|tile]  The type of integration to create
+  -l, --location TEXT          The directory where files will be written
+  -ni, --non-interactive       Disable prompting for fields
+  -q, --quiet                  Show less output
+  -n, --dry-run                Only show what would be created
+  -h, --help                   Show this message and exit.
 ```
 
 #### Dep
@@ -313,6 +324,91 @@ Options:
   -h, --help  Show this message and exit.
 ```
 
+#### Env
+
+```console
+$ ddev env
+Usage: ddev env [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  -h, --help  Show this message and exit.
+
+Commands:
+  check  Run an Agent check
+  ls     List active or available environments
+  prune  Remove all configuration for environments
+  start  Start an environment
+  stop   Stop environments
+```
+
+##### Check
+
+```console
+$ ddev env check -h
+Usage: ddev env check [OPTIONS] CHECK [ENV]
+
+  Run an Agent check.
+
+Options:
+  -r, --rate
+  -h, --help  Show this message and exit.
+```
+
+##### List
+
+```console
+$ ddev env ls -h
+Usage: ddev env ls [OPTIONS] [CHECKS]...
+
+  List active or available environments.
+
+Options:
+  -h, --help  Show this message and exit.
+```
+
+##### Prune
+
+```console
+$ ddev env prune -h
+Usage: ddev env prune [OPTIONS]
+
+  Remove all configuration for environments.
+
+Options:
+  -f, --force
+  -h, --help   Show this message and exit.
+```
+
+##### Start
+
+```console
+$ ddev env start -h
+Usage: ddev env start [OPTIONS] CHECK ENV
+
+  Start an environment.
+
+Options:
+  -a, --agent TEXT  The agent build to use e.g. a Docker image like
+                    `datadog/agent:6.5.2`. For Docker environments you can use
+                    an integer corresponding to fields in the config (agent5,
+                    agent6, etc.)
+  --dev / --prod    Whether to use the latest version of a check or what is
+                    shipped
+  -h, --help        Show this message and exit.
+```
+
+##### Stop
+
+```console
+$ ddev env stop -h
+Usage: ddev env stop [OPTIONS] CHECK [ENV]
+
+  Stop environments.
+
+Options:
+  -h, --help  Show this message and exit.
+```
+
 #### Manifest
 
 ```console
@@ -353,6 +449,34 @@ Options:
   -h, --help            Show this message and exit.
 ```
 
+#### Metadata
+
+```console
+$ ddev metadata -h
+Usage: ddev metadata [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  -h, --help  Show this message and exit.
+
+Commands:
+  verify  Validate `metadata.csv` files, takes optional `check` argument
+```
+
+##### Verify
+
+```console
+$ ddev metadata verify -h
+Usage: ddev metadata verify [OPTIONS] [CHECK]
+
+  Validates metadata.csv files
+
+  If `check` is specified, only the check will be validated, otherwise all
+  matching files in directory.
+
+Options:
+  -h, --help  Show this message and exit.
+```
+
 #### Release
 
 ```console
@@ -383,6 +507,8 @@ Usage: ddev release changelog [OPTIONS] CHECK VERSION [OLD_VERSION]
   This method is supposed to be used by other tasks and not directly.
 
 Options:
+  --initial
+  -q, --quiet
   -n, --dry-run
   -h, --help     Show this message and exit.
 ```
@@ -407,17 +533,27 @@ Options:
 
 ```console
 $ ddev release make -h
-Usage: ddev release make [OPTIONS] CHECK VERSION
+Usage: ddev release make [OPTIONS] CHECK [VERSION]
 
   Perform a set of operations needed to release a single check:
 
-  * update the version in __about__.py
-  * update the changelog
-  * update the requirements-agent-release.txt file
-  * commit the above changes
+    * update the version in __about__.py
+    * update the changelog
+    * update the requirements-agent-release.txt file
+    * update in-toto metadata
+    * commit the above changes
+
+  You can release everything at once by setting the check to `all`.
+
+  If you run into issues signing:
+
+    - Ensure you did `gpg --import <YOUR_KEY_ID>.gpg.pub`
 
 Options:
-  -h, --help  Show this message and exit.
+  --new        Ensure versions are at 1.0.0
+  --skip-sign  Skip the signing of release metadata
+  --sign-only  Only sign release metadata
+  -h, --help   Show this message and exit.
 ```
 
 ##### Show
@@ -475,6 +611,8 @@ Usage: ddev release tag [OPTIONS] CHECK [VERSION]
   Tag the HEAD of the git repo with the current release number for a
   specific check. The tag is pushed to origin by default.
 
+  You can tag everything at once by setting the check to `all`.
+
   Notice: specifying a different version than the one in __about__.py is a
   maintenance task that should be run under very specific circumstances
   (e.g. re-align an old release performed on the wrong commit).
@@ -527,6 +665,15 @@ Options:
   -h, --help     Show this message and exit.
 ```
 
+#### Run
+
+```console
+$ pwd
+C:\Users\ofek.lev\Desktop
+$ ddev run pwd
+C:\Users\ofek.lev\Desktop\code\integrations-core
+```
+
 #### Test
 
 ```console
@@ -538,13 +685,21 @@ Usage: ddev test [OPTIONS] [CHECKS]...
   If no checks are specified, this will only test checks that were changed
   compared to the master branch.
 
+  You can also select specific comma-separated environments to test like so:
+
+  $ ddev test mysql:mysql57,maria10130
+
 Options:
+  -s, --style        Run only style checks
   -b, --bench        Run only benchmarks
   -c, --cov          Measure code coverage
   -m, --cov-missing  Show line numbers of statements that were not executed
-  --cov-keep         Keep coverage reports
-  --changed          Only test changed checks
+  --pdb              Drop to PDB on first failure, then end test session
+  -d, --debug        Set the log level to debug
   -v, --verbose      Increase verbosity (can be used additively)
+  -l, --list         List available test environments
+  --changed          Only test changed checks
+  --cov-keep         Keep coverage reports
   -h, --help         Show this message and exit.
 ```
 

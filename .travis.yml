@@ -45,6 +45,7 @@ jobs:
       script:
         - ddev dep verify
         - ddev manifest verify --include-extras
+        - ddev metadata verify
         - ddev test --cov
         - ddev test --bench || true
     - stage: test
@@ -52,6 +53,7 @@ jobs:
       script:
         - ddev dep verify
         - ddev manifest verify --include-extras
+        - ddev metadata verify
         - travis_retry ddev test --cov ${CHECK}
         - ddev test ${CHECK} --bench || true
     - stage: test
@@ -77,7 +79,11 @@ jobs:
     - stage: test
       env: CHECK=cisco_aci
     - stage: test
+      env: CHECK=cockroachdb PYTHON3=true
+    - stage: test
       env: CHECK=consul
+    - stage: test
+      env: CHECK=coredns PYTHON3=true
     - stage: test
       env: CHECK=couch
     - stage: test
@@ -90,6 +96,8 @@ jobs:
       env: CHECK=dns_check
     - stage: test
       env: CHECK=dotnetclr
+    - stage: test
+      env: CHECK=ecs_fargate
     - stage: test
       env: CHECK=elastic
     - stage: test
@@ -189,7 +197,7 @@ jobs:
     - stage: test
       env: CHECK=rabbitmq
     - stage: test
-      env: CHECK=redisdb
+      env: CHECK=redisdb PYTHON3=true
     - stage: test
       env: CHECK=riak
     - stage: test
@@ -204,6 +212,8 @@ jobs:
       env: CHECK=ssh_check
     - stage: test
       env: CHECK=statsd
+    - stage: test
+      env: CHECK=supervisord
     - stage: test
       env: CHECK=squid
     - stage: test

@@ -17,6 +17,7 @@ APP_DIR = user_data_dir('dd-checks-dev', '')
 CONFIG_FILE = os.path.join(APP_DIR, 'config.toml')
 
 SECRET_KEYS = {
+    'dd_api_key',
     'github.token',
     'pypi.pass',
     'trello.key',
@@ -26,6 +27,10 @@ SECRET_KEYS = {
 DEFAULT_CONFIG = OrderedDict([
     ('core', os.path.join('~', 'dd', 'integrations-core')),
     ('extras', os.path.join('~', 'dd', 'integrations-extras')),
+    ('repo', 'core'),
+    ('agent6', 'datadog/agent-dev:master'),
+    ('agent5', 'datadog/dev-dd-agent:master'),
+    ('dd_api_key', os.getenv('DD_API_KEY')),
     ('github', OrderedDict((
         ('user', ''),
         ('token', ''),
