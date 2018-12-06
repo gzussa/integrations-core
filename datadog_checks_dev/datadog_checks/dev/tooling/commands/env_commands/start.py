@@ -1,6 +1,8 @@
 # (C) Datadog, Inc. 2018
 # All rights reserved
 # Licensed under a 3-clause BSD style license (see LICENSE)
+import os
+
 import click
 import pyperclip
 
@@ -10,7 +12,7 @@ from ..utils import (
 from ...e2e import derive_interface, start_environment, stop_environment
 from ...test import get_available_tox_envs
 from ...utils import get_tox_file
-from ....utils import file_exists
+from ....utils import dir_exists, file_exists, path_join
 
 
 @click.command(
@@ -28,13 +30,27 @@ from ....utils import file_exists
     )
 )
 @click.option('--dev/--prod', help='Whether to use the latest version of a check or what is shipped')
+@click.option('--base', is_flag=True, help='Whether to use the latest version of the base check or what is shipped')
 @click.pass_context
-def start(ctx, check, env, agent, dev):
+def start(ctx, check, env, agent, dev, base):
     """Start an environment."""
     if not file_exists(get_tox_file(check)):
         abort('`{}` is not a testable check.'.format(check))
 
-    envs = get_available_tox_envs(check, test_only=True)
+    base_package = None
+    if base:
+        core_dir = os.path.expanduser(ctx.obj.get('core', ''))
+        if not dir_exists(core_dir):
+            if core_dir:
+                abort('`{}` directory does not exist.'.format(core_dir))
+            else:
+                abort('`core` config setting does not exist.')
+
+        base_package = path_join(core_dir, 'datadog_checks_base')
+        if not dir_exists(base_package):
+            abort('`datadog_checks_base` directory does not exist.')
+
+    envs = get_available_tox_envs(check, e2e_only=True)
 
     if env not in envs:
         echo_failure('`{}` is not an available environment.'.format(env))
@@ -73,7 +89,7 @@ def start(ctx, check, env, agent, dev):
         stop_environment(check, env)
         abort()
 
-    environment = interface(check, env, config, metadata, agent_build, api_key)
+    environment = interface(check, env, base_package, config, metadata, agent_build, api_key)
 
     echo_waiting('Updating `{}`... '.format(agent_build), nl=False)
     environment.update_agent()
@@ -99,16 +115,33 @@ def start(ctx, check, env, agent, dev):
         abort()
     echo_success('success!')
 
+    if base and not dev:
+        dev = True
+        echo_info(
+            'Will install the development version of the check too so the base package can import it (in editable mode)'
+        )
+
     if dev:
         echo_waiting('Upgrading `{}` check to the development version... '.format(check), nl=False)
         environment.update_check()
         echo_success('success!')
 
+    if base:
+        echo_waiting('Upgrading the base package to the development version... ', nl=False)
+        environment.update_base_package()
+        echo_success('success!')
+
     click.echo()
 
-    echo_success('The path to `{}` will be copied to your clipboard: '.format(environment.config_file_name), nl=False)
+    try:
+        pyperclip.copy(environment.config_file)
+    except Exception:
+        config_message = 'Config file: '
+    else:
+        config_message = 'Config file (copied to your clipboard): '
+
+    echo_success(config_message, nl=False)
     echo_info(environment.config_file)
-    pyperclip.copy(environment.config_file)
 
     echo_success('To run this check, do: ', nl=False)
     echo_info('ddev env check {} {}'.format(check, env))

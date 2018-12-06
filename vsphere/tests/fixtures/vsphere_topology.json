@@ -14,6 +14,11 @@
     "parent_name": "datacenter1"
   },
   {
+    "spec": "Datastore",
+    "name": "datastore",
+    "parent_name": "datacenter1"
+  },
+  {
     "spec": "HostSystem",
     "name": "host1",
     "parent_name": "compute_resource1"
@@ -56,6 +61,7 @@
     "parent_name": "host3",
     "runtime.powerState": "poweredOn",
     "runtime.host_name": "host3",
+    "guest.hostName": "vm2_guest",
     "label": true
   },
   {
@@ -72,6 +78,7 @@
     "parent_name": "host3",
     "runtime.powerState": "poweredOn",
     "runtime.host_name": "host3",
+    "guest.hostName": "vm4_guest",
     "label": true
   }
 ]

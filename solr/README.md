@@ -24,8 +24,8 @@ instances:
     port: 9999
 
   # if tomcat requires authentication
-  #   user: <TOMCAT_USERNAME>
-  #   password: <TOMCAT_PASSWORD>
+  #   user: <SOLR_USERNAME>
+  #   password: <SOLR_PASSWORD>
 
 init_config:
   conf:
@@ -187,7 +187,7 @@ Here is another filtering example:
 
 #### Note
 
-List of filters is only supported in Datadog Agent > 5.3.0. If you are using an older version, please use singletons and multiple `include` statements instead.
+List of filters is only supported in Datadog Agent > 5.3.0. If you are using an older version, use singletons and multiple `include` statements instead.
 
     # Datadog Agent > 5.3.0
       conf:

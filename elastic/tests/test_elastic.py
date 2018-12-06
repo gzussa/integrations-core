@@ -5,11 +5,12 @@ import logging
 
 import pytest
 import requests
+from six import iteritems
 
 from datadog_checks.elastic import ESCheck
 from datadog_checks.elastic.config import from_instance
 from datadog_checks.elastic.metrics import (
-    CLUSTER_PENDING_TASKS, ADDITIONAL_METRICS_1_x, index_stats_for_version,
+    CLUSTER_PENDING_TASKS, ADDITIONAL_METRICS_1_x, STATS_METRICS, index_stats_for_version,
     stats_for_version, pshard_stats_for_version, health_stats_for_version
 )
 from .common import CLUSTER_TAG, PASSWORD, URL, USER
@@ -70,17 +71,18 @@ def test__get_urls(elastic_check):
     assert pending_tasks_url == '/_cluster/pending_tasks'
 
 
-def test_check(elastic_cluster, elastic_check, instance, aggregator, cluster_tags, node_tags):
+def test_check(dd_environment, elastic_check, instance, aggregator, cluster_tags, node_tags):
     config = from_instance(instance)
     es_version = elastic_check._get_es_version(config)
 
     elastic_check.check(instance)
 
     # node stats, blacklist metrics that can't be tested in a small, single node instance
-    blacklist = ADDITIONAL_METRICS_1_x.keys() + [
+    blacklist = [
         'elasticsearch.indices.segments.index_writer_max_memory_in_bytes',
     ]
-    for m_name, desc in stats_for_version(es_version).iteritems():
+    blacklist.extend(ADDITIONAL_METRICS_1_x)
+    for m_name, desc in iteritems(stats_for_version(es_version)):
         if m_name in blacklist:
             continue
         aggregator.assert_metric(m_name, count=1, tags=node_tags)
@@ -88,10 +90,10 @@ def test_check(elastic_cluster, elastic_check, instance, aggregator, cluster_tag
     # cluster stats
     expected_metrics = health_stats_for_version(es_version)
     expected_metrics.update(CLUSTER_PENDING_TASKS)
-    for m_name, desc in expected_metrics.iteritems():
+    for m_name, desc in iteritems(expected_metrics):
         aggregator.assert_metric(m_name, count=1, tags=cluster_tags)
 
-    aggregator.assert_service_check('elasticsearch.can_connect', status=ESCheck.OK, tags=node_tags)
+    aggregator.assert_service_check('elasticsearch.can_connect', status=ESCheck.OK, tags=config.service_check_tags)
 
     # Assert service metadata
     # self.assertServiceMetadata(['version'], count=3)
@@ -104,7 +106,15 @@ def test_check(elastic_cluster, elastic_check, instance, aggregator, cluster_tag
         aggregator.assert_service_check('elasticsearch.cluster_health')
 
 
-def test_pshard_metrics(elastic_cluster, elastic_check, aggregator):
+def test_node_name_as_host(dd_environment, elastic_check, instance_normalize_hostname, aggregator, node_tags):
+    elastic_check.check(instance_normalize_hostname)
+    node_name = node_tags[-1].split(':')[1]
+
+    for m_name, _ in iteritems(STATS_METRICS):
+        aggregator.assert_metric(m_name, count=1, tags=node_tags, hostname=node_name)
+
+
+def test_pshard_metrics(dd_environment, elastic_check, aggregator):
     instance = {'url': URL, 'pshard_stats': True, 'username': USER, 'password': PASSWORD}
     config = from_instance(instance)
     es_version = elastic_check._get_es_version(config)
@@ -112,7 +122,7 @@ def test_pshard_metrics(elastic_cluster, elastic_check, aggregator):
     elastic_check.check(instance)
 
     pshard_stats_metrics = pshard_stats_for_version(es_version)
-    for m_name, desc in pshard_stats_metrics.iteritems():
+    for m_name, desc in iteritems(pshard_stats_metrics):
         if desc[0] == 'gauge':
             aggregator.assert_metric(m_name)
 
@@ -122,7 +132,7 @@ def test_pshard_metrics(elastic_cluster, elastic_check, aggregator):
     aggregator.assert_metric('elasticsearch.primaries.docs.count')
 
 
-def test_index_metrics(elastic_cluster, aggregator, elastic_check, instance, cluster_tags):
+def test_index_metrics(dd_environment, aggregator, elastic_check, instance, cluster_tags):
     instance['index_stats'] = True
     config = from_instance(instance)
     es_version = elastic_check._get_es_version(config)
@@ -131,11 +141,11 @@ def test_index_metrics(elastic_cluster, aggregator, elastic_check, instance, clu
 
     elastic_check.check(instance)
     print(aggregator._metrics)
-    for m_name, desc in index_stats_for_version(es_version).iteritems():
+    for m_name, desc in iteritems(index_stats_for_version(es_version)):
         aggregator.assert_metric(m_name, tags=cluster_tags + ['index_name:testindex'])
 
 
-def test_health_event(elastic_cluster, aggregator, elastic_check):
+def test_health_event(dd_environment, aggregator, elastic_check):
     dummy_tags = ['elastique:recherche']
     instance = {'url': URL, 'username': USER, 'password': PASSWORD, 'tags': dummy_tags}
     config = from_instance(instance)
@@ -148,7 +158,8 @@ def test_health_event(elastic_cluster, aggregator, elastic_check):
 
     if es_version < [2, 0, 0]:
         assert len(aggregator.events) == 1
-        assert sorted(aggregator.events[0]['tags']) == sorted(set(['url:' + URL]
-                                                              + dummy_tags + CLUSTER_TAG))
+        assert sorted(aggregator.events[0]['tags']) == sorted(
+            set(['url:{}'.format(URL)] + dummy_tags + CLUSTER_TAG)
+        )
     else:
         aggregator.assert_service_check('elasticsearch.cluster_health')

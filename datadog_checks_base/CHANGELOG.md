@@ -1,5 +1,29 @@
 # CHANGELOG - datadog_checks_base
 
+## 4.5.0 / 2018-12-02
+
+* [Added] Improve OpenMetrics label joins. See [#2624](https://github.com/DataDog/integrations-core/pull/2624).
+
+## 4.4.0 / 2018-11-30
+
+* [Added] Add linux as supported OS. See [#2614](https://github.com/DataDog/integrations-core/pull/2614).
+* [Added] Upgrade cryptography. See [#2659](https://github.com/DataDog/integrations-core/pull/2659).
+* [Added] Upgrade requests. See [#2656](https://github.com/DataDog/integrations-core/pull/2656).
+* [Fixed] Fix not_asserted aggregator stub function. See [#2639](https://github.com/DataDog/integrations-core/pull/2639).
+* [Added] Log line where `AgentCheck.warning` was called in the check. See [#2620](https://github.com/DataDog/integrations-core/pull/2620).
+* [Fixed] Fix requirements-agent-release.txt updating. See [#2617](https://github.com/DataDog/integrations-core/pull/2617).
+
+## 4.3.0 / 2018-11-12
+
+* [Added] Add option to prevent subprocess command logging. See [#2565](https://github.com/DataDog/integrations-core/pull/2565).
+* [Added] Support Kerberos auth. See [#2516](https://github.com/DataDog/integrations-core/pull/2516).
+* [Added] Add option to send additional metric tags for Open Metrics. See [#2514](https://github.com/DataDog/integrations-core/pull/2514).
+* [Added] Add standard ssl_verify option to Open Metrics. See [#2507](https://github.com/DataDog/integrations-core/pull/2507).
+* [Added] Winpdh improve exception messages. See [#2486](https://github.com/DataDog/integrations-core/pull/2486).
+* [Added] Upgrade requests. See [#2481](https://github.com/DataDog/integrations-core/pull/2481).
+* [Fixed] Fix bug making the network check read /proc instead of /host/proc on containers. See [#2460](https://github.com/DataDog/integrations-core/pull/2460).
+* [Added] Fix unicode handling on A6. See [#2435](https://github.com/DataDog/integrations-core/pull/2435).
+
 ## 4.2.0 / 2018-10-16
 
 * [Added] Expose text conversion methods. See [#2420](https://github.com/DataDog/integrations-core/pull/2420).

@@ -10,6 +10,7 @@ import pytest
 import requests
 
 from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, SummaryMetricFamily, HistogramMetricFamily
+from six import iteritems
 
 from datadog_checks.checks.openmetrics import OpenMetricsBaseCheck
 
@@ -135,7 +136,8 @@ def test_process_metric_filtered(aggregator, mocked_prometheus_check, mocked_pro
     check = mocked_prometheus_check
     check.process_metric(filtered_gauge, mocked_prometheus_scraper_config, metric_transformers={})
     check.log.debug.assert_called_with(
-        "Unable to handle metric: process_start_time_seconds - error: No handler function named 'process_start_time_seconds' defined"
+        "Unable to handle metric: process_start_time_seconds - "
+        "error: No handler function named 'process_start_time_seconds' defined"
     )
     aggregator.assert_all_metrics_covered()
 
@@ -259,11 +261,16 @@ def test_submit_gauge_with_custom_tags(
 ):
     """ Providing custom tags should add them as is on the gauge call """
     check = mocked_prometheus_check
-    tags = ['env:dev', 'app:my_pretty_app']
-    mocked_prometheus_scraper_config['custom_tags'] = tags
+    mocked_prometheus_scraper_config['custom_tags'] = ['env:dev', 'app:my_pretty_app']
+    mocked_prometheus_scraper_config['_metric_tags'] = ['foo:bar']
     metric = mocked_prometheus_scraper_config['metrics_mapper'][ref_gauge.name]
     check._submit(metric, ref_gauge, mocked_prometheus_scraper_config)
-    aggregator.assert_metric('prometheus.process.vm.bytes', 54927360.0, tags=tags, count=1)
+    aggregator.assert_metric(
+        'prometheus.process.vm.bytes',
+        54927360.0,
+        tags=mocked_prometheus_scraper_config['custom_tags'] + mocked_prometheus_scraper_config['_metric_tags'],
+        count=1
+    )
 
 
 def test_submit_gauge_with_labels_mapper(aggregator, mocked_prometheus_check, mocked_prometheus_scraper_config):
@@ -1434,17 +1441,61 @@ def test_label_join_with_hostname(aggregator, mocked_prometheus_check, mocked_pr
     )
 
 
+def test_label_join_state_change(aggregator, mocked_prometheus_check, mocked_prometheus_scraper_config, mock_get):
+    """
+    This test checks that the label join picks up changes for already watched labels.
+    If a phase changes for example, the tag should change as well.
+    """
+    check = mocked_prometheus_check
+    mocked_prometheus_scraper_config['namespace'] = 'ksm'
+    mocked_prometheus_scraper_config['label_joins'] = {
+        'kube_pod_info': {
+            'label_to_match': 'pod',
+            'labels_to_get': ['node']
+        },
+        'kube_pod_status_phase': {
+            'label_to_match': 'pod',
+            'labels_to_get': ['phase']
+        }
+    }
+    mocked_prometheus_scraper_config['metrics_mapper'] = {'kube_pod_status_ready': 'pod.ready'}
+    # dry run to build mapping
+    check.process(mocked_prometheus_scraper_config)
+    # run with submit
+    check.process(mocked_prometheus_scraper_config)
+
+    # check that 15 pods are in phase:Running
+    assert 15 == len(mocked_prometheus_scraper_config['_label_mapping']['pod'])
+    for _, tags in iteritems(mocked_prometheus_scraper_config['_label_mapping']['pod']):
+        assert tags.get('phase') == 'Running'
+
+    text_data = mock_get.replace(
+        'kube_pod_status_phase{namespace="default",phase="Running",pod="dd-agent-62bgh"} 1',
+        'kube_pod_status_phase{namespace="default",phase="Test",pod="dd-agent-62bgh"} 1'
+    )
+
+    mock_response = mock.MagicMock(
+        status_code=200, iter_lines=lambda **kwargs: text_data.split("\n"), headers={'Content-Type': text_content_type}
+    )
+    with mock.patch('requests.get', return_value=mock_response, __name__="get"):
+        check.process(mocked_prometheus_scraper_config)
+        assert 15 == len(mocked_prometheus_scraper_config['_label_mapping']['pod'])
+        assert mocked_prometheus_scraper_config['_label_mapping']['pod']['dd-agent-62bgh']['phase'] == 'Test'
+
+
 def test_health_service_check_ok(mock_get, aggregator, mocked_prometheus_check, mocked_prometheus_scraper_config):
     """ Tests endpoint health service check OK """
     check = mocked_prometheus_check
 
     mocked_prometheus_scraper_config['namespace'] = 'ksm'
+    mocked_prometheus_scraper_config['custom_tags'] = ['foo:bar']
+    mocked_prometheus_scraper_config['_metric_tags'] = ['bar:foo']
     check.process(mocked_prometheus_scraper_config)
 
     aggregator.assert_service_check(
         'ksm.prometheus.health',
         status=OpenMetricsBaseCheck.OK,
-        tags=['endpoint:http://fake.endpoint:10055/metrics'],
+        tags=['endpoint:http://fake.endpoint:10055/metrics', 'foo:bar'],
         count=1,
     )
 
@@ -1454,12 +1505,14 @@ def test_health_service_check_failing(aggregator, mocked_prometheus_check, mocke
     check = mocked_prometheus_check
 
     mocked_prometheus_scraper_config['namespace'] = 'ksm'
+    mocked_prometheus_scraper_config['custom_tags'] = ['foo:bar']
+    mocked_prometheus_scraper_config['_metric_tags'] = ['bar:foo']
     with pytest.raises(requests.ConnectionError):
         check.process(mocked_prometheus_scraper_config)
     aggregator.assert_service_check(
         'ksm.prometheus.health',
         status=OpenMetricsBaseCheck.CRITICAL,
-        tags=["endpoint:http://fake.endpoint:10055/metrics"],
+        tags=['endpoint:http://fake.endpoint:10055/metrics', 'foo:bar'],
         count=1,
     )
 
